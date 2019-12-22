@@ -7,11 +7,13 @@ Original by Kyle Gordon (https://github.com/kylegordon/mqtt-zabbix),
 modifications by Markku Leiniö in 2019:
 - Modified for Python 3 and systemd
 - Forked zbxsend from https://github.com/pistolero/zbxsend (for Python 3 fixes)
-- Removed the parsing of item-specific hosts
+- Removed parsing of item-specific hosts
+- Added LLD-based template (for Zabbix 4.4) to setup all the items automatically in Zabbix
 - plus other style adjustments
 
+Implementation tested with Debian Linux 10 (Buster) and Zabbix 4.4.
 
-INSTALL DEPENDENCES
+INSTALL DEPENDENCIES
 =======
 
 ```
@@ -23,24 +25,35 @@ cd /tmp/zbxsend
 sudo pip3 install .
 ```
 
-# Install MQTT Zabbix
+Configure Zabbix
+========
+
+1. Inspect and import the template from `Zabbix-Template-App-EmonPi-discovery.xml`.
+1. Create a host in Zabbix and link the imported template to it. This host will be having all the
+items monitored by mqtt-zabbix. The items are automatically created with LLD rules.
+
+Install and Configure MQTT-Zabbix
+========
+
 ```
 sudo -i
 mkdir /etc/mqtt-zabbix/
 git clone git://github.com/markkuleinio/mqtt-zabbix.git /opt/mqtt-zabbix/
 cp /opt/mqtt-zabbix/mqtt-zabbix.cfg.example /etc/mqtt-zabbix/mqtt-zabbix.cfg
-cp /opt/mqtt-zabbix/mqtt-zabbix.init /etc/init.d/mqtt-zabbix
-## Edit /etc/mqtt-zabbix/mqtt-zabbix.cfg to suit
 cp /opt/mqtt-zabbix/items.csv.example /etc/mqtt-zabbix/items.csv
-## Edit /etc/mqtt-zabbix/items.csv to suit. Be sure to avoid spaces, and keep it as one key per topic
-/etc/init.d/mqtt-zabbix start
 ```
 
-CONFIGURE
-=========
+Edit `/etc/mqtt-zabbix/mqtt-zabbix.cfg` and `/etc/mqtt-zabbix/items.csv` according
+to your setup. Be sure to avoid spaces in `items.csv`, and keep it as one line per topic.
 
-Configuration is stored in /etc/mqtt-zabbix/mqtt-zabbix.cfg
+```
+adduser --system --home /opt/mqtt-zabbix --gecos "mqtt-zabbix" --disabled-login --group mqtt-zbx
+touch /var/log/mqtt-zabbix.log
+chown mqtt-zbx:mqtt-zbx /var/log/mqtt-zabbix.log
+cp /opt/mqtt-zabbix/mqtt-zabbix.service /etc/systemd/system/mqtt-zabbix.service
+systemctl daemon-reload
+systemctl start mqtt-zabbix
+systemctl enable mqtt-zabbix
+```
 
-Message topics are mapped to Zabbix item names, and are stored in `/etc/mqtt-zabbix/items.csv`.
-When setting up a Zabbix item, ensure you use item type of Zabbix trapper, and check the "Type of information" field is defined correctly. MQTT can transport all sorts of information, and will happily try to deliver a string to your integer data type!
-zbx_mqtt_template.xml is an example Zabbix template
+In case of problems, try `journalctl -u mqtt-zabbix` and see `/var/log/mqtt-zabbix.log`.
