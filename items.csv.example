@@ -1,0 +1,6 @@
+emon/emonpi/t1,Temperature in the server room
+emon/emonth5/external temperature,Temperature in the living room
+emon/emonth5/battery,Battery level in the living room
+emon/emonth5/rssi,Signal level from the living room
+emon/emontx3/temp1,Temperature in the electric box
+emon/emontx3/rssi,Signal level from the electric box

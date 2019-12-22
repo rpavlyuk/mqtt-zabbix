@@ -1,10 +1,11 @@
 [global]
-DEBUG = True
+DEBUG = False
 LOGFILE = /var/log/mqtt-zabbix.log
-MQTT_HOST = mqtt.example.com
+MQTT_HOST = emonpi.example.com
 MQTT_PORT = 1883
-MQTT_TOPIC = /#
-KEYFILE = /etc/mqtt-zabbix/keys.csv
-KEYHOST = house
+#MQTT_TOPIC = /#
+MQTT_TOPIC = emon/#
+KEYFILE = /etc/mqtt-zabbix/items.csv
+KEYHOST = emonpi-monitoring
 ZABBIX_SERVER = zabbix.example.com
 ZABBIX_PORT = 10051
