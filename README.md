@@ -6,6 +6,7 @@ A small daemon to listen for particular MQTT messages, and relay them to a Zabbi
 Original by Kyle Gordon (https://github.com/kylegordon/mqtt-zabbix),
 modifications by Markku Leiniö in 2019:
 - Modified for Python 3 and systemd
+- Forked zbxsend from https://github.com/pistolero/zbxsend (for Python 3 fixes)
 - Removed the parsing of item-specific hosts
 - plus other style adjustments
 
@@ -16,13 +17,10 @@ INSTALL DEPENDENCES
 ```
 sudo apt-get install git python3-pip
 sudo pip3 install paho-mqtt
-sudo pip3 install zbxsend
-```
-## Alternatively this...
-```
-git clone https://github.com/pistolero/zbxsend /tmp/zbxsend
+
+git clone https://github.com/markkuleinio/zbxsend /tmp/zbxsend
 cd /tmp/zbxsend
-sudo python setup.py install
+sudo pip3 install .
 ```
 
 # Install MQTT Zabbix
