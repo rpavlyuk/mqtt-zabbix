@@ -1,0 +1,214 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<zabbix_export>
+    <version>4.4</version>
+    <date>2019-12-22T12:04:29Z</date>
+    <groups>
+        <group>
+            <name>Templates</name>
+        </group>
+    </groups>
+    <templates>
+        <template>
+            <template>Template-App-EmonPi-discovery</template>
+            <name>Template::App::EmonPi-discovery</name>
+            <description>Release notes:&#13;
+&#13;
+Version 2019-12-22-1:&#13;
+- First version&#13;
+&#13;
+Needs mqtt-zabbix service configured and running. LLD and items are implemented with Zabbix trappers.&#13;
+&#13;
+Macros:&#13;
+T_EMON_BATT&#13;
+T_EMON_HUMID_THRESH1&#13;
+T_EMON_HUMID_THRESH2&#13;
+T_EMON_TEMP_THRESH1&#13;
+T_EMON_TEMP_THRESH2</description>
+            <groups>
+                <group>
+                    <name>Templates</name>
+                </group>
+            </groups>
+            <applications>
+                <application>
+                    <name>Battery voltages</name>
+                </application>
+                <application>
+                    <name>Humidities</name>
+                </application>
+                <application>
+                    <name>Signal strengths</name>
+                </application>
+                <application>
+                    <name>Temperatures</name>
+                </application>
+            </applications>
+            <discovery_rules>
+                <discovery_rule>
+                    <name>Battery voltages</name>
+                    <type>TRAP</type>
+                    <key>mqtt-zabbix.discovery.battery</key>
+                    <delay>0</delay>
+                    <item_prototypes>
+                        <item_prototype>
+                            <name>{#ITEMDESCR}</name>
+                            <type>TRAP</type>
+                            <key>mqtt-zabbix.battery[{#ITEMNAME}]</key>
+                            <delay>0</delay>
+                            <history>7d</history>
+                            <value_type>FLOAT</value_type>
+                            <units>V</units>
+                            <applications>
+                                <application>
+                                    <name>Battery voltages</name>
+                                </application>
+                            </applications>
+                            <trigger_prototypes>
+                                <trigger_prototype>
+                                    <expression>{last()}&lt;{$T_EMON_BATT:&quot;{#ITEMNAME}&quot;}</expression>
+                                    <name>{#ITEMDESCR} alle {$T_EMON_BATT:&quot;{#ITEMNAME}&quot;} V</name>
+                                    <priority>WARNING</priority>
+                                    <manual_close>YES</manual_close>
+                                </trigger_prototype>
+                            </trigger_prototypes>
+                        </item_prototype>
+                    </item_prototypes>
+                </discovery_rule>
+                <discovery_rule>
+                    <name>Humidities</name>
+                    <type>TRAP</type>
+                    <key>mqtt-zabbix.discovery.humidity</key>
+                    <delay>0</delay>
+                    <item_prototypes>
+                        <item_prototype>
+                            <name>{#ITEMDESCR}</name>
+                            <type>TRAP</type>
+                            <key>mqtt-zabbix.humidity[{#ITEMNAME}]</key>
+                            <delay>0</delay>
+                            <history>7d</history>
+                            <value_type>FLOAT</value_type>
+                            <units>%</units>
+                            <applications>
+                                <application>
+                                    <name>Humidities</name>
+                                </application>
+                            </applications>
+                            <trigger_prototypes>
+                                <trigger_prototype>
+                                    <expression>{last()}&gt;{$T_EMON_HUMID_THRESH1:&quot;{#ITEMNAME}&quot;}</expression>
+                                    <name>{#ITEMDESCR} yli {$T_EMON_HUMID_THRESH1:&quot;{#ITEMNAME}&quot;} %</name>
+                                    <priority>WARNING</priority>
+                                    <manual_close>YES</manual_close>
+                                </trigger_prototype>
+                                <trigger_prototype>
+                                    <expression>{last()}&gt;{$T_EMON_HUMID_THRESH2:&quot;{#ITEMNAME}&quot;}</expression>
+                                    <name>{#ITEMDESCR} yli {$T_EMON_HUMID_THRESH2:&quot;{#ITEMNAME}&quot;} %!</name>
+                                    <priority>HIGH</priority>
+                                    <manual_close>YES</manual_close>
+                                </trigger_prototype>
+                            </trigger_prototypes>
+                        </item_prototype>
+                    </item_prototypes>
+                </discovery_rule>
+                <discovery_rule>
+                    <name>Signal strengths</name>
+                    <type>TRAP</type>
+                    <key>mqtt-zabbix.discovery.rssi</key>
+                    <delay>0</delay>
+                    <item_prototypes>
+                        <item_prototype>
+                            <name>{#ITEMDESCR}</name>
+                            <type>TRAP</type>
+                            <key>mqtt-zabbix.rssi[{#ITEMNAME}]</key>
+                            <delay>0</delay>
+                            <history>7d</history>
+                            <value_type>FLOAT</value_type>
+                            <units>dBm</units>
+                            <applications>
+                                <application>
+                                    <name>Signal strengths</name>
+                                </application>
+                            </applications>
+                            <preprocessing>
+                                <step>
+                                    <type>DISCARD_UNCHANGED_HEARTBEAT</type>
+                                    <params>60</params>
+                                </step>
+                            </preprocessing>
+                        </item_prototype>
+                    </item_prototypes>
+                </discovery_rule>
+                <discovery_rule>
+                    <name>Temperatures</name>
+                    <type>TRAP</type>
+                    <key>mqtt-zabbix.discovery.temperature</key>
+                    <delay>0</delay>
+                    <item_prototypes>
+                        <item_prototype>
+                            <name>{#ITEMDESCR}</name>
+                            <type>TRAP</type>
+                            <key>mqtt-zabbix.temperature[{#ITEMNAME}]</key>
+                            <delay>0</delay>
+                            <history>7d</history>
+                            <value_type>FLOAT</value_type>
+                            <units>°C</units>
+                            <applications>
+                                <application>
+                                    <name>Temperatures</name>
+                                </application>
+                            </applications>
+                            <preprocessing>
+                                <step>
+                                    <type>DISCARD_UNCHANGED_HEARTBEAT</type>
+                                    <params>60</params>
+                                </step>
+                            </preprocessing>
+                            <trigger_prototypes>
+                                <trigger_prototype>
+                                    <expression>{nodata(5m)}=1</expression>
+                                    <name>Ei dataa 5 minuuttiin: {#ITEMDESCR}</name>
+                                    <priority>WARNING</priority>
+                                    <manual_close>YES</manual_close>
+                                </trigger_prototype>
+                                <trigger_prototype>
+                                    <expression>{last()}&lt;{$T_EMON_TEMP_THRESH1:&quot;{#ITEMNAME}&quot;}</expression>
+                                    <name>{#ITEMDESCR} alle {$T_EMON_TEMP_THRESH1:&quot;{#ITEMNAME}&quot;} astetta</name>
+                                    <priority>WARNING</priority>
+                                    <manual_close>YES</manual_close>
+                                </trigger_prototype>
+                                <trigger_prototype>
+                                    <expression>{last()}&lt;{$T_EMON_TEMP_THRESH2:&quot;{#ITEMNAME}&quot;}</expression>
+                                    <name>{#ITEMDESCR} alle {$T_EMON_TEMP_THRESH2:&quot;{#ITEMNAME}&quot;} astetta!</name>
+                                    <priority>HIGH</priority>
+                                    <manual_close>YES</manual_close>
+                                </trigger_prototype>
+                            </trigger_prototypes>
+                        </item_prototype>
+                    </item_prototypes>
+                </discovery_rule>
+            </discovery_rules>
+            <macros>
+                <macro>
+                    <macro>{$T_EMON_BATT}</macro>
+                    <value>2.3</value>
+                </macro>
+                <macro>
+                    <macro>{$T_EMON_HUMID_THRESH1}</macro>
+                    <value>95</value>
+                </macro>
+                <macro>
+                    <macro>{$T_EMON_HUMID_THRESH2}</macro>
+                    <value>102</value>
+                </macro>
+                <macro>
+                    <macro>{$T_EMON_TEMP_THRESH1}</macro>
+                    <value>0</value>
+                </macro>
+                <macro>
+                    <macro>{$T_EMON_TEMP_THRESH2}</macro>
+                    <value>-2</value>
+                </macro>
+            </macros>
+        </template>
+    </templates>
+</zabbix_export>
