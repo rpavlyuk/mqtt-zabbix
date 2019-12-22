@@ -1,5 +1,4 @@
-#!/usr/bin/env python
-# -*- coding: iso-8859-1 -*-
+#!/usr/bin/env python3
 
 __author__ = "Kyle Gordon"
 __copyright__ = "Copyright (C) Kyle Gordon"
@@ -13,14 +12,20 @@ import sys
 import csv
 
 import paho.mqtt.client as mqtt
-import ConfigParser
+import configparser
 
 from datetime import datetime, timedelta
 
 from zbxsend import Metric, send_to_zabbix
 
+# LLD data
+lld_data = {}
+last_stale_check = 0
+last_full_lld_send = 0
+LLD_SEND_INTERVAL = 3600
+
 # Read the config file
-config = ConfigParser.RawConfigParser()
+config = configparser.RawConfigParser()
 config.read("/etc/mqtt-zabbix/mqtt-zabbix.cfg")
 
 # Use ConfigParser to pick out the settings
@@ -28,6 +33,8 @@ DEBUG = config.getboolean("global", "debug")
 LOGFILE = config.get("global", "logfile")
 MQTT_HOST = config.get("global", "mqtt_host")
 MQTT_PORT = config.getint("global", "mqtt_port")
+MQTT_USER = config.get("global", "mqtt_user")
+MQTT_PASSWORD = config.get("global", "mqtt_password")
 MQTT_TOPIC = config.get("global", "mqtt_topic")
 
 KEYFILE = config.get("global", "keyfile")
@@ -79,7 +86,7 @@ def on_unsubscribe(mosq, obj, mid):
     logging.debug("Unsubscribe with mid " + str(mid) + " received.")
 
 
-def on_connect(self, mosq, obj, result_code):
+def on_connect(mosq, obj, flags, result_code):
     """
     Handle connections (or failures) to the broker.
     This is called after the client has received a CONNACK message
@@ -138,7 +145,7 @@ def on_message(mosq, obj, msg):
     """
     What to do when the client recieves a message from the broker
     """
-    logging.debug("Received: " + msg.payload +
+    logging.debug("Received: " + msg.payload.decode() +
                   " received on topic " + msg.topic +
                   " with QoS " + str(msg.qos))
     process_message(msg)
@@ -161,39 +168,124 @@ def process_connection():
     mqttc.subscribe(MQTT_TOPIC, 2)
 
 
+def send_lld_data(discovery_key_name, datadict):
+    output = "[\n"
+    first = True
+    for topic in sorted(datadict.keys()):
+        _, sensorname, metric = topic.split("/")
+        item = "{}.{}".format(sensorname, metric)
+        if not first:
+            output += ",\n"
+        first = False
+        output += "\t{\n"
+        output += '\t\t"{}":"{}",\n'.format("{#ITEMNAME}",item)
+        output += '\t\t"{}":"{}"\n'.format("{#ITEMDESCR}",KeyMap.item_names[topic])
+        output += "\t}"
+    output += "\n]\n"
+    logging.debug("Generated LLD data:\n{}".format(output))
+    logging.info("Sending LLD data for {} (len={}) for host {}".format(
+        discovery_key_name,
+        len(datadict),
+        KEYHOST
+    ))
+    send_to_zabbix(
+        [Metric(KEYHOST, discovery_key_name, output, time.strftime("%s"))],
+        ZBXSERVER,
+        ZBXPORT
+    )
+    return
+
+
+def get_key_type(topic):
+    _, sensorname, metric = topic.split("/")
+    if metric == "battery":
+        return "battery"
+    elif metric.startswith("t") or metric == "external temperature":
+        return "temperature"
+    elif metric == "humidity":
+        return "humidity"
+    elif metric == "rssi":
+        return "rssi"
+    else:
+        return "unknown"
+
+
+def lld_update(topic):
+    global lld_data
+    global last_full_lld_send
+    global last_stale_check
+    keytype = get_key_type(topic)
+    if keytype not in lld_data:
+        # Initialize the dict if needed
+        lld_data[keytype] = {}
+    time_now = time.monotonic()
+    send_needed = False
+    if topic not in lld_data[keytype]:
+        send_needed = True
+    # Set/update the timestamp
+    lld_data[keytype][topic] = time_now
+    # Do the stale topic check only once a minute
+    if last_stale_check+60 < time_now:
+        last_stale_check = time_now
+        # Check all keytypes for any outdated topics
+        for kt in lld_data:
+            for t in lld_data[kt]:
+                if lld_data[kt][t]+LLD_SEND_INTERVAL < time_now:
+                    # No data for that topic for some time, remove it
+                    del lld_data[kt][t]
+        if last_full_lld_send+LLD_SEND_INTERVAL < time_now:
+            logging.info("Sending full LLD updates (every {} seconds)".format(LLD_SEND_INTERVAL))
+            last_full_lld_send = time_now
+            # Send LLD data for all keytypes
+            for keytype in lld_data:
+                send_lld_data("mqtt-zabbix.discovery.{}".format(keytype), lld_data[keytype])
+            # No need to continue further, sent all already
+            return
+    if send_needed:
+        # New topic was added so send this LLD data anyway
+        send_lld_data("mqtt-zabbix.discovery.{}".format(keytype), lld_data[keytype])
+    return
+
+
+def get_zabbix_item(topic):
+    _, sensorname, metric = topic.split("/")
+    return "mqtt-zabbix.{}[{}.{}]".format(
+        get_key_type(topic),
+        sensorname,
+        metric
+    )
+
+
 def process_message(msg):
     """
     What to do with the message that's arrived.
     Looks up the topic in the KeyMap dictionary, and forwards
     the message onto Zabbix using the associated Zabbix key
     """
-    logging.debug("Processing : " + msg.topic)
-    if msg.topic in KeyMap.mapdict:
-        if msg.payload == "ON":
-	    msg.payload = 1
-        if msg.payload == "OFF":
-            msg.payload = 0
-        zbxKey = KeyMap.mapdict[msg.topic]
-        (zbxKey,zbxHost) =zbxKey.split("::")
-  	if zbxHost == "": 
-	    zbxHost = KEYHOST	
-        logging.info("Sending %s %s to Zabbix to host %s key %s",
-                      msg.topic,
-                      msg.payload,
-		      zbxHost,
-                      zbxKey)
+    topic = msg.topic
+    payload = msg.payload.decode()
+    logging.debug("Processing: " + topic)
+    if topic in KeyMap.item_names:
+        lld_update(topic)
+        if payload == "ON":
+            payload = "1"
+        elif payload == "OFF":
+            payload = "0"
+        keyname = get_zabbix_item(topic)
+        logging.info("Sending {} = {} to Zabbix to host {} key {}".format(
+            topic, payload, KEYHOST, keyname
+        ))
         # Zabbix can also accept text and character data...
         # should we sanitize input or just accept it as is?
-        send_to_zabbix([Metric(zbxHost,
-                        zbxKey,
-                        msg.payload,
-                        time.strftime("%s"))],
-                        ZBXSERVER,
-                        ZBXPORT)
+        send_to_zabbix(
+            [Metric(KEYHOST, keyname, payload, time.strftime("%s"))],
+            ZBXSERVER,
+            ZBXPORT
+        )
     else:
         # Received something with a /raw/ topic,
         # but it didn't match anything. Log it, and discard it
-        logging.debug("Unknown: %s", msg.topic)
+        logging.debug("Unknown: {}".format(topic))
 
 
 def cleanup(signum, frame):
@@ -219,6 +311,7 @@ def connect():
     logging.debug("Connecting to %s:%s", MQTT_HOST, MQTT_PORT)
     # Set the Last Will and Testament (LWT) *before* connecting
     mqttc.will_set(PRESENCETOPIC, "0", qos=0, retain=True)
+    mqttc.username_pw_set(MQTT_USER, MQTT_PASSWORD)
     result = mqttc.connect(MQTT_HOST, MQTT_PORT, 60)
     if result != 0:
         logging.info("Connection failed with error code %s. Retrying", result)
@@ -243,7 +336,7 @@ class KeyMap:
     logging.debug("Loading map")
     with open(KEYFILE, mode="r") as inputfile:
         reader = csv.reader(inputfile)
-        mapdict = dict((rows[0], rows[1]) for rows in reader)
+        item_names = dict((rows[0], rows[1]) for rows in reader)
 
 # Use the signal module to handle signals
 signal.signal(signal.SIGTERM, cleanup)
