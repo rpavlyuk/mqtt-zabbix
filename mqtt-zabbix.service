@@ -1,0 +1,20 @@
+[Unit]
+Description=MQTT-Zabbix
+Documentation=https://github.com/markkuleinio/mqtt-zabbix
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=mqtt-zbx
+Group=mqtt-zbx
+PIDFile=/run/mqtt-zabbix.pid
+WorkingDirectory=/opt/mqtt-zabbix
+
+ExecStart=python3 /opt/mqtt-zabbix/mqtt-zabbix.py
+
+Restart=on-failure
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target
