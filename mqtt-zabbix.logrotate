@@ -1,0 +1,9 @@
+/var/log/mqtt-zabbix.log {
+    daily
+    rotate 32
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 0644 mqtt-zbx mqtt-zbx
+}

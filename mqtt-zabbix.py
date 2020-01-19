@@ -5,6 +5,7 @@ __copyright__ = "Copyright (C) Kyle Gordon"
 
 import os
 import logging
+import logging.handlers
 import signal
 import socket
 import time
@@ -49,18 +50,23 @@ mqttc = mqtt.Client(client_id="client_id")
 
 LOGFORMAT = "%(asctime)-15s %(message)s"
 
-if DEBUG:
-    logging.basicConfig(filename=LOGFILE,
-                        level=logging.DEBUG,
-                        format=LOGFORMAT)
+if __name__ == "__main__":
+    logger = logging.getLogger()
 else:
-    logging.basicConfig(filename=LOGFILE,
-                        level=logging.INFO,
-                        format=LOGFORMAT)
+    logger = logging.getLogger(__name__)
 
-logging.info("Starting " + APPNAME)
-logging.info("INFO MODE")
-logging.debug("DEBUG MODE")
+if DEBUG:
+    logger.setLevel(logging.DEBUG)
+else:
+    logger.setLevel(logging.INFO)
+fileformatter = logging.Formatter(LOGFORMAT)
+filehandler = logging.handlers.WatchedFileHandler(LOGFILE)
+filehandler.setFormatter(fileformatter)
+logger.addHandler(filehandler)
+
+logger.info("Starting " + APPNAME)
+logger.info("INFO MODE")
+logger.debug("DEBUG MODE")
 
 # All the MQTT callbacks start here
 
@@ -69,21 +75,21 @@ def on_publish(mosq, obj, mid):
     """
     What to do when a message is published
     """
-    logging.debug("MID " + str(mid) + " published.")
+    logger.debug("MID " + str(mid) + " published.")
 
 
 def on_subscribe(mosq, obj, mid, qos_list):
     """
     What to do in the event of subscribing to a topic"
     """
-    logging.debug("Subscribe with mid " + str(mid) + " received.")
+    logger.debug("Subscribe with mid " + str(mid) + " received.")
 
 
 def on_unsubscribe(mosq, obj, mid):
     """
     What to do in the event of unsubscribing from a topic
     """
-    logging.debug("Unsubscribe with mid " + str(mid) + " received.")
+    logger.debug("Unsubscribe with mid " + str(mid) + " received.")
 
 
 def on_connect(mosq, obj, flags, result_code):
@@ -100,32 +106,32 @@ def on_connect(mosq, obj, flags, result_code):
     4: Refused – bad user name or password (MQTT v3.1 broker only)
     5: Refused – not authorised (MQTT v3.1 broker only)
     """
-    logging.debug("on_connect RC: " + str(result_code))
+    logger.debug("on_connect RC: " + str(result_code))
     if result_code == 0:
-        logging.info("Connected to %s:%s", MQTT_HOST, MQTT_PORT)
+        logger.info("Connected to %s:%s", MQTT_HOST, MQTT_PORT)
         # Publish retained LWT as per
         # http://stackoverflow.com/q/97694
         # See also the will_set function in connect() below
         mqttc.publish(PRESENCETOPIC, "1", retain=True)
         process_connection()
     elif result_code == 1:
-        logging.info("Connection refused - unacceptable protocol version")
+        logger.info("Connection refused - unacceptable protocol version")
         cleanup()
     elif result_code == 2:
-        logging.info("Connection refused - identifier rejected")
+        logger.info("Connection refused - identifier rejected")
         cleanup()
     elif result_code == 3:
-        logging.info("Connection refused - server unavailable")
-        logging.info("Retrying in 30 seconds")
+        logger.info("Connection refused - server unavailable")
+        logger.info("Retrying in 30 seconds")
         time.sleep(30)
     elif result_code == 4:
-        logging.info("Connection refused - bad user name or password")
+        logger.info("Connection refused - bad user name or password")
         cleanup()
     elif result_code == 5:
-        logging.info("Connection refused - not authorised")
+        logger.info("Connection refused - not authorised")
         cleanup()
     else:
-        logging.warning("Something went wrong. RC:" + str(result_code))
+        logger.warning("Something went wrong. RC:" + str(result_code))
         cleanup()
 
 
@@ -134,10 +140,10 @@ def on_disconnect(mosq, obj, result_code):
     Handle disconnections from the broker
     """
     if result_code == 0:
-        logging.info("Clean disconnection")
+        logger.info("Clean disconnection")
     else:
-        logging.info("Unexpected disconnection! Reconnecting in 5 seconds")
-        logging.debug("Result code: %s", result_code)
+        logger.info("Unexpected disconnection! Reconnecting in 5 seconds")
+        logger.debug("Result code: %s", result_code)
         time.sleep(5)
 
 
@@ -145,9 +151,9 @@ def on_message(mosq, obj, msg):
     """
     What to do when the client recieves a message from the broker
     """
-    logging.debug("Received: " + msg.payload.decode() +
-                  " received on topic " + msg.topic +
-                  " with QoS " + str(msg.qos))
+    logger.debug("Received: " + msg.payload.decode() +
+                 " received on topic " + msg.topic +
+                 " with QoS " + str(msg.qos))
     process_message(msg)
 
 
@@ -155,7 +161,7 @@ def on_log(mosq, obj, level, string):
     """
     What to do with debug log output from the MQTT library
     """
-    logging.debug(string)
+    logger.debug(string)
 
 # End of MQTT callbacks
 
@@ -164,7 +170,7 @@ def process_connection():
     """
     What to do when a new connection is established
     """
-    logging.debug("Processing connection")
+    logger.debug("Processing connection")
     mqttc.subscribe(MQTT_TOPIC, 2)
 
 
@@ -182,8 +188,8 @@ def send_lld_data(discovery_key_name, datadict):
         output += '\t\t"{}":"{}"\n'.format("{#ITEMDESCR}",KeyMap.item_names[topic])
         output += "\t}"
     output += "\n]\n"
-    logging.debug("Generated LLD data:\n{}".format(output))
-    logging.info("Sending LLD data for {} (len={}) for host {}".format(
+    logger.debug("Generated LLD data:\n{}".format(output))
+    logger.info("Sending LLD data for {} (len={}) for host {}".format(
         discovery_key_name,
         len(datadict),
         KEYHOST
@@ -234,7 +240,7 @@ def lld_update(topic):
                     # No data for that topic for some time, remove it
                     del lld_data[kt][t]
         if last_full_lld_send+LLD_SEND_INTERVAL < time_now:
-            logging.info("Sending full LLD updates (every {} seconds)".format(LLD_SEND_INTERVAL))
+            logger.info("Sending full LLD updates (every {} seconds)".format(LLD_SEND_INTERVAL))
             last_full_lld_send = time_now
             # Send LLD data for all keytypes
             for keytype in lld_data:
@@ -264,7 +270,7 @@ def process_message(msg):
     """
     topic = msg.topic
     payload = msg.payload.decode()
-    logging.debug("Processing: " + topic)
+    logger.debug("Processing: " + topic)
     if topic in KeyMap.item_names:
         lld_update(topic)
         if payload == "ON":
@@ -272,7 +278,7 @@ def process_message(msg):
         elif payload == "OFF":
             payload = "0"
         keyname = get_zabbix_item(topic)
-        logging.info("Sending {} = {} to Zabbix to host {} key {}".format(
+        logger.info("Sending {} = {} to Zabbix to host {} key {}".format(
             topic, payload, KEYHOST, keyname
         ))
         # Zabbix can also accept text and character data...
@@ -285,7 +291,7 @@ def process_message(msg):
     else:
         # Received something with a /raw/ topic,
         # but it didn't match anything. Log it, and discard it
-        logging.debug("Unknown: {}".format(topic))
+        logger.debug("Unknown: {}".format(topic))
 
 
 def cleanup(signum, frame):
@@ -293,11 +299,11 @@ def cleanup(signum, frame):
     Signal handler to ensure we disconnect cleanly
     in the event of a SIGTERM or SIGINT.
     """
-    logging.info("Disconnecting from broker")
+    logger.info("Disconnecting from broker")
     # Publish a retained message to state that this client is offline
     mqttc.publish(PRESENCETOPIC, "0", retain=True)
     mqttc.disconnect()
-    logging.info("Exiting on signal %d", signum)
+    logger.info("Exiting on signal %d", signum)
     sys.exit(signum)
 
 
@@ -308,13 +314,13 @@ def connect():
     The LWT will be published in the event of an unclean or
     unexpected disconnection.
     """
-    logging.debug("Connecting to %s:%s", MQTT_HOST, MQTT_PORT)
+    logger.debug("Connecting to %s:%s", MQTT_HOST, MQTT_PORT)
     # Set the Last Will and Testament (LWT) *before* connecting
     mqttc.will_set(PRESENCETOPIC, "0", qos=0, retain=True)
     mqttc.username_pw_set(MQTT_USER, MQTT_PASSWORD)
     result = mqttc.connect(MQTT_HOST, MQTT_PORT, 60)
     if result != 0:
-        logging.info("Connection failed with error code %s. Retrying", result)
+        logger.info("Connection failed with error code %s. Retrying", result)
         time.sleep(10)
         connect()
 
@@ -333,7 +339,7 @@ class KeyMap:
     """
     Read the topics and keys into a dictionary for internal lookups
     """
-    logging.debug("Loading map")
+    logger.debug("Loading map")
     with open(KEYFILE, mode="r") as inputfile:
         reader = csv.reader(inputfile)
         item_names = dict((rows[0], rows[1]) for rows in reader)
@@ -349,5 +355,5 @@ connect()
 try:
     mqttc.loop_forever()
 except KeyboardInterrupt:
-    logging.info("Interrupted by keypress")
+    logger.info("Interrupted by keypress")
     sys.exit(0)

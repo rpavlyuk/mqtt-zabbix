@@ -51,6 +51,7 @@ adduser --system --home /opt/mqtt-zabbix --gecos "mqtt-zabbix" --disabled-login 
 touch /var/log/mqtt-zabbix.log
 chown mqtt-zbx:mqtt-zbx /var/log/mqtt-zabbix.log
 cp /opt/mqtt-zabbix/mqtt-zabbix.service /etc/systemd/system/mqtt-zabbix.service
+cp /opt/mqtt-zabbix/mqtt-zabbix.logrotate /etc/logrotate.d/mqtt-zabbix
 systemctl daemon-reload
 systemctl start mqtt-zabbix
 systemctl enable mqtt-zabbix
