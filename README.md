@@ -9,7 +9,8 @@ modifications by Markku Leiniö in 2019:
 - Forked zbxsend from https://github.com/pistolero/zbxsend (for Python 3 fixes)
 - Removed parsing of item-specific hosts
 - Added LLD-based template (for Zabbix 4.4) to setup all the items automatically in Zabbix
-- plus other style adjustments
+- Added logrotate support
+- plus style adjustments
 
 Implementation tested with Debian Linux 10 (Buster) and Zabbix 4.4.
 
