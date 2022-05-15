@@ -195,7 +195,7 @@ def send_lld_data(discovery_key_name, datadict):
         KEYHOST
     ))
     send_to_zabbix(
-        [Metric(KEYHOST, discovery_key_name, output, time.strftime("%s"))],
+        [Metric(KEYHOST, discovery_key_name, output)],
         ZBXSERVER,
         ZBXPORT
     )
@@ -284,7 +284,7 @@ def process_message(msg):
         # Zabbix can also accept text and character data...
         # should we sanitize input or just accept it as is?
         send_to_zabbix(
-            [Metric(KEYHOST, keyname, payload, time.strftime("%s"))],
+            [Metric(KEYHOST, keyname, payload)],
             ZBXSERVER,
             ZBXPORT
         )
