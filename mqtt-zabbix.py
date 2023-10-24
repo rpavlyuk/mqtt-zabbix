@@ -15,6 +15,8 @@ import csv
 import paho.mqtt.client as mqtt
 import configparser
 
+import traceback
+
 from datetime import datetime, timedelta
 
 from zbxsend import Metric, send_to_zabbix
@@ -151,10 +153,18 @@ def on_message(mosq, obj, msg):
     """
     What to do when the client recieves a message from the broker
     """
-    logger.debug("Received: " + msg.payload.decode() +
+    try:
+        m = msg.payload.decode()
+    except:
+        m = "UNABLE TO DECODE"
+    logger.debug("Received: " + m +
                  " received on topic " + msg.topic +
                  " with QoS " + str(msg.qos))
-    process_message(msg)
+    try:
+        process_message(msg)
+    except:
+        logger.error("ERROR on_message")
+        logger.error(traceback.format_exc())
 
 
 def on_log(mosq, obj, level, string):
@@ -178,8 +188,8 @@ def send_lld_data(discovery_key_name, datadict):
     output = "[\n"
     first = True
     for topic in sorted(datadict.keys()):
-        _, sensorname, metric = topic.split("/")
-        item = "{}.{}".format(sensorname, metric)
+        logger.debug("Processing topic {}".format(topic))
+        item = get_zabbix_item(topic);
         if not first:
             output += ",\n"
         first = False
@@ -203,17 +213,22 @@ def send_lld_data(discovery_key_name, datadict):
 
 
 def get_key_type(topic):
-    _, sensorname, metric = topic.split("/")
+
+    lst_topic = topic.split("/")
+
+    metric = lst_topic[-1] 
+    sensorname = lst_topic[1]
+
     if metric == "battery":
         return "battery"
-    elif metric.startswith("t") or metric == "external temperature":
+    elif metric.startswith("temperature") or metric == "external temperature":
         return "temperature"
     elif metric == "humidity":
         return "humidity"
-    elif metric == "rssi":
+    elif metric == "rssi" or metric == "linkquality":
         return "rssi"
     else:
-        return "unknown"
+        return "general"
 
 
 def lld_update(topic):
@@ -254,11 +269,21 @@ def lld_update(topic):
 
 
 def get_zabbix_item(topic):
-    _, sensorname, metric = topic.split("/")
+
+    lst_topic = topic.split("/")
+
+    key_path = lst_topic[2]
+
+    if len(lst_topic) > 3:
+        i = 3
+        while i < len(lst_topic):
+            key_path += ("." + lst_topic[i])
+            i+=1
+
     return "mqtt-zabbix.{}[{}.{}]".format(
         get_key_type(topic),
-        sensorname,
-        metric
+        lst_topic[1],
+        key_path
     )
 
 
@@ -278,6 +303,7 @@ def process_message(msg):
         elif payload == "OFF":
             payload = "0"
         keyname = get_zabbix_item(topic)
+        logger.debug("Payload type: " + str(type(payload)))
         logger.info("Sending {} = {} to Zabbix to host {} key {}".format(
             topic, payload, KEYHOST, keyname
         ))
