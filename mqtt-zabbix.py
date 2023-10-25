@@ -176,6 +176,22 @@ def on_log(mosq, obj, level, string):
 # End of MQTT callbacks
 
 
+def ensure_float(variable):
+    """
+    Ensure string variables which in fact are number are converted to numbers
+    """
+    if isinstance(variable, str):  # Check if variable is a string
+        try:
+            return float(variable)  # Try to cast to float
+        except ValueError:
+            logger.debug("Variable is actually a string: " + str(variable))
+            return variable  # Return the original variable
+    elif isinstance(variable, (int, float)):  # Check if variable is an int or float
+        return float(variable)  # Cast to float
+    else:
+        logger.debug("Variable is neither a string not a number: " + str(variable))
+        return variable  # Return the original variable
+
 def process_connection():
     """
     What to do when a new connection is established
@@ -185,30 +201,35 @@ def process_connection():
 
 
 def send_lld_data(discovery_key_name, datadict):
-    output = "[\n"
-    first = True
-    for topic in sorted(datadict.keys()):
-        logger.debug("Processing topic {}".format(topic))
-        item = get_zabbix_item(topic);
-        if not first:
-            output += ",\n"
-        first = False
-        output += "\t{\n"
-        output += '\t\t"{}":"{}",\n'.format("{#ITEMNAME}",item)
-        output += '\t\t"{}":"{}"\n'.format("{#ITEMDESCR}",KeyMap.item_names[topic])
-        output += "\t}"
-    output += "\n]\n"
-    logger.debug("Generated LLD data:\n{}".format(output))
-    logger.info("Sending LLD data for {} (len={}) for host {}".format(
-        discovery_key_name,
-        len(datadict),
-        KEYHOST
-    ))
-    send_to_zabbix(
-        [Metric(KEYHOST, discovery_key_name, output)],
-        ZBXSERVER,
-        ZBXPORT
-    )
+
+    for host, items in KeyMap.items_by_host.items():
+
+        output = "[\n"
+        first = True
+        for topic in sorted(datadict.keys()):
+            if topic not in items:
+                continue
+            logger.debug("Processing topic {}".format(topic))
+            item = get_zabbix_item(topic);
+            if not first:
+                output += ",\n"
+            first = False
+            output += "\t{\n"
+            output += '\t\t"{}":"{}",\n'.format("{#ITEMNAME}",item)
+            output += '\t\t"{}":"{}"\n'.format("{#ITEMDESCR}",KeyMap.item_names[topic])
+            output += "\t}"
+        output += "\n]\n"
+        logger.debug("Generated LLD data:\n{}".format(output))
+        logger.info("Sending LLD data for {} (len={}) for host {}".format(
+            discovery_key_name,
+            len(datadict),
+            KEYHOST
+            ))
+        send_to_zabbix(
+            [Metric(host, discovery_key_name, output)],
+             ZBXSERVER,
+            ZBXPORT
+        )
     return
 
 
@@ -287,6 +308,21 @@ def get_zabbix_item(topic):
     )
 
 
+def get_host_override(topic):
+    """
+    Override HOST if it set in key file
+    """
+    if topic in KeyMap.item_names:
+        descr = KeyMap.item_names[topic]
+
+        lst_host = descr.split(":")
+        if len(lst_host) > 1:
+            return lst_host[1]
+        else:
+            return KEYHOST
+
+    return KEYHOST
+
 def process_message(msg):
     """
     What to do with the message that's arrived.
@@ -294,7 +330,7 @@ def process_message(msg):
     the message onto Zabbix using the associated Zabbix key
     """
     topic = msg.topic
-    payload = msg.payload.decode()
+    payload = ensure_float(msg.payload.decode())
     logger.debug("Processing: " + topic)
     if topic in KeyMap.item_names:
         lld_update(topic)
@@ -303,14 +339,15 @@ def process_message(msg):
         elif payload == "OFF":
             payload = "0"
         keyname = get_zabbix_item(topic)
+
         logger.debug("Payload type: " + str(type(payload)))
         logger.info("Sending {} = {} to Zabbix to host {} key {}".format(
-            topic, payload, KEYHOST, keyname
+            topic, payload, get_host_override(topic), keyname
         ))
         # Zabbix can also accept text and character data...
         # should we sanitize input or just accept it as is?
         send_to_zabbix(
-            [Metric(KEYHOST, keyname, payload)],
+            [Metric(get_host_override(topic), keyname, payload)],
             ZBXSERVER,
             ZBXPORT
         )
@@ -365,14 +402,42 @@ class KeyMap:
     """
     Read the topics and keys into a dictionary for internal lookups
     """
-    logger.debug("Loading map")
-    with open(KEYFILE, mode="r") as inputfile:
-        reader = csv.reader(inputfile)
-        item_names = dict((rows[0], rows[1]) for rows in reader)
+    items_by_host = None
+    item_names = None
+
+    @classmethod
+    def load_map(cls, keyfile, keyhost):
+        if cls.items_by_host is None or cls.item_names is None:
+            cls.keyfile = keyfile
+            cls.keyhost = keyhost
+            cls.items_by_host = {}
+            cls.item_names = {}
+            cls._load_map()
+
+    @classmethod
+    def _load_map(cls):
+        logger.debug("Loading map")
+        with open(cls.keyfile, mode="r") as inputfile:
+            reader = csv.reader(inputfile)
+            cls.item_names = dict((rows[0], rows[1]) for rows in reader)
+        cls._make_items_by_host()
+
+    @classmethod
+    def _make_items_by_host(cls):
+        for key, value in cls.item_names.items():
+            host = cls.keyhost
+            host = get_host_override(key)  # This function should be defined somewhere in your code
+            if host in cls.items_by_host:
+                cls.items_by_host[host][key] = value
+            else:
+                cls.items_by_host[host] = {key: value}
 
 # Use the signal module to handle signals
 signal.signal(signal.SIGTERM, cleanup)
 signal.signal(signal.SIGINT, cleanup)
+
+# load
+KeyMap.load_map(KEYFILE, KEYHOST)
 
 # Connect to the broker
 connect()

@@ -1,6 +1,6 @@
 [Unit]
 Description=MQTT-Zabbix
-Documentation=https://github.com/markkuleinio/mqtt-zabbix
+Documentation=https://github.com/rpavlyuk/mqtt-zabbix
 After=network-online.target
 Wants=network-online.target
 
