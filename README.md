@@ -15,6 +15,9 @@ modifications by Markku Leiniö in 2019:
 Additions by Roman Pavlyuk in 2023:
 - multi-host support: default host is set in settings file (.cfg), but each item can override the host if the one is specified via colon (:) sign (see example of csv file)
 - stability and compatibility improvement with the lastest versions of Python
+- Docker container added:
+ - `build.sh`, `run.sh` and `push.sh` to manage the container image
+ - mount host configuration folder as `--volume /etc/mqtt-zabbix:/etc/mqtt-zabbix`. Example: `./run.sh --volume /etc/mqtt-zabbix:/etc/mqtt-zabbix`
 
 Implementation tested with Debian Linux 10 (Buster) and Zabbix 4.4, Fedora 38 and Zabbix 6.x
 
