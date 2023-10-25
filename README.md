@@ -43,7 +43,7 @@ Install and Configure MQTT-Zabbix
 ```
 sudo -i
 mkdir /etc/mqtt-zabbix/
-git clone git://github.com/markkuleinio/mqtt-zabbix.git /opt/mqtt-zabbix/
+git clone git://github.com/rpavlyuk/mqtt-zabbix.git /opt/mqtt-zabbix/
 cp /opt/mqtt-zabbix/mqtt-zabbix.cfg.example /etc/mqtt-zabbix/mqtt-zabbix.cfg
 cp /opt/mqtt-zabbix/items.csv.example /etc/mqtt-zabbix/items.csv
 ```
