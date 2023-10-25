@@ -341,7 +341,7 @@ def process_message(msg):
         keyname = get_zabbix_item(topic)
 
         logger.debug("Payload type: " + str(type(payload)))
-        logger.info("Sending {} = {} to Zabbix to host {} key {}".format(
+        logger.debug("Sending {} = {} to Zabbix to host {} key {}".format(
             topic, payload, get_host_override(topic), keyname
         ))
         # Zabbix can also accept text and character data...
@@ -383,7 +383,7 @@ def connect():
     mqttc.username_pw_set(MQTT_USER, MQTT_PASSWORD)
     result = mqttc.connect(MQTT_HOST, MQTT_PORT, 60)
     if result != 0:
-        logger.info("Connection failed with error code %s. Retrying", result)
+        logger.error("Connection failed with error code %s. Retrying", result)
         time.sleep(10)
         connect()
 
