@@ -33,6 +33,7 @@ config.read("/etc/mqtt-zabbix/mqtt-zabbix.cfg")
 
 # Use ConfigParser to pick out the settings
 DEBUG = config.getboolean("global", "debug")
+QUIET = config.getboolean("global", "quiet")
 LOGFILE = config.get("global", "logfile")
 MQTT_HOST = config.get("global", "mqtt_host")
 MQTT_PORT = config.getint("global", "mqtt_port")
@@ -57,10 +58,15 @@ if __name__ == "__main__":
 else:
     logger = logging.getLogger(__name__)
 
+# Setup log level.
+# DEBUG setting is overriding QUIET
 if DEBUG:
     logger.setLevel(logging.DEBUG)
+elif QUIET:
+    logger.setLevel(logging.ERROR)
 else:
     logger.setLevel(logging.INFO)
+
 fileformatter = logging.Formatter(LOGFORMAT)
 filehandler = logging.handlers.WatchedFileHandler(LOGFILE)
 filehandler.setFormatter(fileformatter)
