@@ -15,7 +15,7 @@ RUN pip3 install paho-mqtt
 
 # Install ZBXSend
 RUN mkdir -p /build/zbxsend
-RUN git clone https://github.com/markkuleinio/zbxsend /build/zbxsend/
+RUN git clone https://github.com/rpavlyuk/zbxsend /build/zbxsend/
 RUN cd /build/zbxsend && pip3 install .
 
 # Prepare MQTT Zabbix

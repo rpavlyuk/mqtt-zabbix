@@ -15,6 +15,8 @@ import csv
 import paho.mqtt.client as mqtt
 import configparser
 
+import json
+
 import traceback
 
 from datetime import datetime, timedelta
@@ -210,7 +212,8 @@ def send_lld_data(discovery_key_name, datadict):
 
     for host, items in KeyMap.items_by_host.items():
 
-        output = "[\n"
+        host = host.strip()
+        output = "["
         first = True
         for topic in sorted(datadict.keys()):
             if topic not in items:
@@ -218,22 +221,24 @@ def send_lld_data(discovery_key_name, datadict):
             logger.debug("Processing topic {}".format(topic))
             item = get_zabbix_item(topic);
             if not first:
-                output += ",\n"
+                output += ","
             first = False
-            output += "\t{\n"
-            output += '\t\t"{}":"{}",\n'.format("{#ITEMNAME}",item)
-            output += '\t\t"{}":"{}"\n'.format("{#ITEMDESCR}",KeyMap.item_names[topic])
-            output += "\t}"
-        output += "\n]\n"
-        logger.debug("Generated LLD data:\n{}".format(output))
-        logger.info("Sending LLD data for {} (len={}) for host {}".format(
+            output += "{"
+            output += '"{}":"{}",'.format("{#ITEMNAME}",item)
+            output += '"{}":"{}"'.format("{#ITEMDESCR}", get_clean_item_description(KeyMap.item_names[topic]))
+            output += "}"
+        output += "]"
+        logger.debug("Generated LLD data:\n{}".format(json.dumps(json.loads(output), indent=4)))
+        logger.info("Sending LLD data for {} (len={}) for host {}. Zabbix server: {}:{}".format(
             discovery_key_name,
             len(datadict),
-            KEYHOST
+            host,
+            ZBXSERVER,
+            ZBXPORT
             ))
         send_to_zabbix(
             [Metric(host, discovery_key_name, output)],
-             ZBXSERVER,
+            ZBXSERVER,
             ZBXPORT
         )
     return
@@ -323,11 +328,21 @@ def get_host_override(topic):
 
         lst_host = descr.split(":")
         if len(lst_host) > 1:
-            return lst_host[1]
+            return lst_host[1].strip()
         else:
             return KEYHOST
 
     return KEYHOST
+
+def get_clean_item_description(descr):
+    """
+    Clean the item description by stripping off the host suffix after ":" separator
+    """
+    lst_descr = descr.split(":")
+    if len(lst_descr) > 1:
+        return str(lst_descr[0])
+    else:
+        return str(descr)
 
 def process_message(msg):
     """
@@ -431,8 +446,8 @@ class KeyMap:
     @classmethod
     def _make_items_by_host(cls):
         for key, value in cls.item_names.items():
-            host = cls.keyhost
-            host = get_host_override(key)  # This function should be defined somewhere in your code
+            # host = cls.keyhost
+            host = get_host_override(key).strip()
             if host in cls.items_by_host:
                 cls.items_by_host[host][key] = value
             else:

@@ -1,3 +1,3 @@
 #!/bin/bash
 
-docker build -t rpavlyuk/mqtt-zabbix .
+docker build $@ -t rpavlyuk/mqtt-zabbix .
