@@ -49,9 +49,9 @@ ZBXSERVER = config.get("global", "zabbix_server")
 ZBXPORT = config.getint("global", "zabbix_port")
 
 APPNAME = "mqtt-zabbix"
-PRESENCETOPIC = "clients/" + socket.getfqdn() + "/" + APPNAME + "/state"
-client_id = APPNAME + "_%d" % os.getpid()
-mqttc = mqtt.Client(client_id="client_id")
+PRESENCETOPIC = f"clients/{socket.getfqdn()}/{APPNAME}/state"
+client_id = f"{APPNAME}_{os.getpid()}"
+mqttc = mqtt.Client(client_id=client_id)
 
 LOGFORMAT = "%(asctime)-15s %(message)s"
 
@@ -59,6 +59,10 @@ if __name__ == "__main__":
     logger = logging.getLogger()
 else:
     logger = logging.getLogger(__name__)
+
+# Ensure logger configuration
+logging.basicConfig(level=logging.INFO, format=LOGFORMAT)
+
 
 # Setup log level.
 # DEBUG setting is overriding QUIET
@@ -391,22 +395,42 @@ def cleanup(signum, frame):
     sys.exit(signum)
 
 
-def connect():
+def connect(max_retries=10):
     """
-    Connect to the broker, define the callbacks, and subscribe
-    This will also set the Last Will and Testament (LWT)
+    Connect to the broker, define the callbacks, and subscribe.
+    This will also set the Last Will and Testament (LWT).
     The LWT will be published in the event of an unclean or
     unexpected disconnection.
+
+    Args:
+        max_retries (int): Maximum number of connection retries before giving up.
     """
-    logger.debug("Connecting to %s:%s", MQTT_HOST, MQTT_PORT)
-    # Set the Last Will and Testament (LWT) *before* connecting
-    mqttc.will_set(PRESENCETOPIC, "0", qos=0, retain=True)
-    mqttc.username_pw_set(MQTT_USER, MQTT_PASSWORD)
-    result = mqttc.connect(MQTT_HOST, MQTT_PORT, 60)
-    if result != 0:
-        logger.error("Connection failed with error code %s. Retrying", result)
-        time.sleep(10)
-        connect()
+    retry_count = 0
+
+    while retry_count < max_retries:
+        try:
+            logger.debug("Connecting to %s:%s (Attempt %d/%d)", MQTT_HOST, MQTT_PORT, retry_count + 1, max_retries)
+            # Set the Last Will and Testament (LWT) *before* connecting
+            mqttc.will_set(PRESENCETOPIC, "0", qos=0, retain=True)
+            mqttc.username_pw_set(MQTT_USER, MQTT_PASSWORD)
+
+            result = mqttc.connect(MQTT_HOST, MQTT_PORT, 60)
+            if result == 0:
+                logger.info("Successfully connected to the MQTT broker.")
+                break
+            else:
+                logger.warning("Connection failed with error code %s. Retrying...", result)
+
+        except Exception as e:
+            logger.error("An exception occurred during connection attempt %d: %s", retry_count + 1, str(e))
+
+        retry_count += 1
+        if retry_count < max_retries:
+            time.sleep(10)
+
+    if retry_count >= max_retries:
+        logger.critical("Failed to connect to the MQTT broker after %d attempts. Giving up.", max_retries)
+        return
 
     # Define the callbacks
     mqttc.on_connect = on_connect
@@ -417,6 +441,8 @@ def connect():
     mqttc.on_message = on_message
     if DEBUG:
         mqttc.on_log = on_log
+
+    logger.debug("Callbacks have been set up successfully.")
 
 
 class KeyMap:
